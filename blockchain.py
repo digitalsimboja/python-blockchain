@@ -29,7 +29,7 @@ class Blockchain:
         block = {}
         block['index'] = 1
         block['prev_hash'] = '0000000000'
-        block['nonce'] = 456
+        block['nonce'] = 123
         block['data'] = 'This is the genesis block of skolo-online python blockchain'
         block['timestamp'] = genesis_time.strftime('%Y-%m-%d %H:%M:%S.%f')
 
@@ -75,3 +75,84 @@ class Blockchain:
         cur.close()
 
         return len(chain) + 1
+
+    def mine(self, transactions, mysql):
+        """
+        Mines a new block and adds to the blockchain
+        """
+
+        t_time = datetime.now()
+        previous_hash = ""
+        cur = mysql.connection.cursor()
+
+        block = {}
+        block['nonce'] = 123
+        block['data'] = transactions
+        block['timestamp'] = t_time.strftime('%Y-%m-%d %H:%M:%S.%f')
+
+        result = cur.execute("SELECT * FROM blockchain_chain")
+        chain = cur.fetchall
+        current_index = len(chain) + 1
+        if result > 0:
+            chain_length = len(chain)
+            cur.execute(
+                'SELECT * FROM blockchain_chain WHERE block=%s', [chain_length])
+            last_block = cur.fetchone()
+            previous_hash = last_block['hash']
+
+        block['index'] = current_index
+        block['prev_hash'] = previous_hash
+
+        mining = False
+        while mining is False:
+            encode_block = json.dumps(block, sort_keys=True).encode()
+            new_hash = hashlib.sha256(encode_block).hexdigest()
+
+            if new_hash[:5] == '00009':
+                mining = True
+            else:
+                block['nonce'] += 1
+
+                encoded_block = json.dumps(block, sort_keys=True).encode()
+                new_hash = hashlib.sha256(encoded_block).hexdigest()
+
+        block['hash'] = new_hash
+
+        # New block is mined, persist it to the chain
+        cur.execute("INSERT INTO blockchain_chain(block, nonce, hash, prev_hash, timestamp, data) VALUES(%s, %s, %s, %s, %s, %s)",
+                    (block['index'], block['nonce'], block['hash'], block['prev_hash'], block['timestamp'], json.dumps(block['data'])))
+
+        mysql.connection.commit()
+
+        cur.close()
+
+        return block
+
+    def check_valid_transactions(self, mysql):
+        """
+        A function that check is all transactions are valid
+        """
+        verified_transactions = []
+
+        cur = mysql.connection.cursor()
+        result = cur.execute("SELECT * FROM blockchain_transactions")
+        transactions = cur.fetchall()
+
+        if result > 0:
+            for trx in transactions:
+                trx_id = trx['id']
+                data = json.loads(trx['transaction'])
+                sig = trx['signature']
+                string_transaction = json.dumps(data, sort_keys=True).encode()
+
+                signature = eval(sig)
+
+                pub, key2 = keys.get_public_keys_from_sig(signature, string_transaction, curve=curve.secp256k1, hashfunc=ecdsa.sha256)
+
+                is_valid = ecdsa.verify(signature, string_transaction, pub, curve.secp256k1, ecdsa.sha256)
+
+                if is_valid:
+                    verified_transactions.append(data)
+        
+        cur.close()
+        return verified_transactions
