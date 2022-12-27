@@ -23,6 +23,10 @@ def page_not_found(e):
 app = Flask(__name__)
 
 app.register_error_handler(404, page_not_found)
+app.config['MYSQL_HOST'] = 'localhost'
+app.config['MYSQL_USER'] = 'root'
+app.config['MYSQL_PASSWORD'] = ''
+app.config['MYSQL_DB'] = 'blockchain'
 
 mysql = MySQL(app)
 
@@ -55,7 +59,7 @@ def test():
     }
 
     priv_key, pub_key = import_key(
-        '/home/sunday/dev/simple-blockchain/keys/secp256k1.key')
+        '/home/sunday/dev/keys/secp256k1.key')
 
     transaction = wallet.create_transaction(data)
 
