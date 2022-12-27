@@ -11,6 +11,7 @@ import requests
 from uuid import uuid4
 import zmq
 
+
 class Block:
     def __init__(self, index, transactions, timestamp, previous_hash, nonce=0):
         self.index = index
@@ -39,7 +40,7 @@ class Blockchain:
         # Persist the genesis block to the blockchain
         cur = mysql.connection.cursor()
         cur.execute("INSERT INTO blockchain_chain(block, nonce, hash, prev_hash, timestamp, data) VALUES(%s, %s, %s, %s, %s, %s)",
-        (block['index'], block['nonce'], block['hash'], block['prev_hash'], block['timestamp'], block['data']))
+                    (block['index'], block['nonce'], block['hash'], block['prev_hash'], block['timestamp'], block['data']))
 
         mysql.connection.commit()
 
@@ -61,9 +62,11 @@ class Blockchain:
                     return
 
         # Transaction does not exist so add to Database
-        transaction_string = json.dumps(new_transaction, sort_keys=True).encode()
+        transaction_string = json.dumps(
+            new_transaction, sort_keys=True).encode()
         transaction_signature = json.dumps(signature)
-        cur.execute("INSERT INTO blockchain_transactions(pub_key, signature, transaction_id, transaction) VALUES(%s, %s, %s, %s)", (pub_key, transaction_signature, transaction_id, transaction_string))
+        cur.execute("INSERT INTO blockchain_transactions(pub_key, signature, transaction_id, transaction) VALUES(%s, %s, %s, %s)",
+                    (pub_key, transaction_signature, transaction_id, transaction_string))
         mysql.connection.commit()
 
         cur.execute("SELECT * FROM blockchain_chain")
