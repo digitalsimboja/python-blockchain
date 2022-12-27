@@ -10,9 +10,12 @@ class Wallet:
     def generate_key_pair(self):
         priv_key, pub_key = gen_keypair(curve.secp256k1)
         export_key(priv_key, curve=curve.secp256k1,
-                   filepath='/home/sunday/dev/simple-blockchain/keys/secp256k1.key')
+                   filepath='/home/sunday/dev/keys/secp256k1.key')
         export_key(pub_key, curve=curve.secp256k1,
-                   filepath='/home/sunday/dev/simple-blockchain/keys/secp256k1.pub')
+                   filepath='/home/sunday/dev/keys/secp256k1.pub')
+
+        print(priv_key)
+        print(pub_key)
 
         return True
 

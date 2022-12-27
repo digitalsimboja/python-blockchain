@@ -4,15 +4,6 @@ import json
 from fastecdsa import curve, ecdsa, keys
 
 
-class Block:
-    def __init__(self, index, transactions, timestamp, previous_hash, nonce=0):
-        self.index = index
-        self.transactions = transactions
-        self.timestamp = timestamp
-        self.previous_hash = previous_hash
-        self.nonce = nonce
-
-
 class Blockchain:
 
     def create_genesis_block(self, mysql):
@@ -122,7 +113,7 @@ class Blockchain:
 
     def check_valid_transactions(self, mysql):
         """
-        A function that check is all transactions are valid
+        A function that check if all transactions are valid
         """
         verified_transactions = []
 
