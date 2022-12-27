@@ -202,8 +202,101 @@ class Blockchain:
                 print('validity failed comparing the nonce values and index {}'.format(
                     block_index))
                 return False
-            
-            block_index +=1
-        
+
+            block_index += 1
+
         cur.close()
         return True
+
+    def check_len_transactions(self, mysql):
+        """
+        Gets the lengths of the transactions in the pool
+        """
+
+        cur = mysql.connection.cursor()
+        result = cur.execute("SELECT * FROM blockchain_transactions")
+        transactions = cur.fetchall()
+
+        cur.close()
+
+        if len(transactions) > 100:
+            # We have more than 100 transactions in the pool
+            return True
+        else:
+            return False
+
+    def proof_of_work(self, mysql):
+        # Start by verifying all the transactions in the pool
+        verified_transactions = []
+
+        cur = mysql.connection.cursor()
+        result = cur.execute("SELECT * FROM blockchain_transactions")
+        transactions = cur.fetchall()
+
+        # We are going to verify all the transactions in the pool before we add them to the block .....
+        # then clear the transaction pool by deleting all the transactions in the database ....
+        if result > 0:
+            for transaction in transactions:
+                id = transaction['id']
+                data = json.loads(transaction['transaction'])
+                signature_string = transaction['signature']
+
+                string_transaction = json.dumps(data, sort_keys=True).encode()
+
+                signature = eval(signature_string)
+                public, key2 = keys.get_public_keys_from_sig(
+                    signature, string_transaction, curve=curve.secp256k1, hashfunc=ecdsa.sha256)
+
+                is_valid = ecdsa.verify(
+                    signature, string_transaction, public, curve.secp256k1, ecdsa.sha256)
+                if is_valid is True:
+                    verified_transactions.append(data)
+                cur.execute(
+                    "DELETE from blockchain_transactions WHERE id=%s", [id])
+                mysql.connection.commit()
+
+        # Now we add the transactions to the new block
+        the_time = datetime.now()
+        prev_hash = ''
+
+        block = {}
+        block['nonce'] = 123
+        block['data'] = verified_transactions
+        block['timestamp'] = the_time.strftime('%Y-%m-%d %H:%M:%S.%f')
+
+        block_result = cur.execute("SELECT * FROM blockchain_chain")
+        chain = cur.fetchall()
+        current_index = len(chain) + 1
+        if block_result > 0:
+            length = len(chain)
+            cur.execute(
+                "SELECT * from blockchain_chain WHERE block=%s", [length])
+            last_block = cur.fetchone()
+            prev_hash = last_block['hash']
+
+        block['index'] = current_index
+        block['prev_hash'] = prev_hash
+
+        mining = False
+        while mining is False:
+            encoded_block = json.dumps(block, sort_keys=True).encode()
+            new_hash = hashlib.sha256(encoded_block).hexdigest()
+
+            if new_hash[:5] == '00009':
+                mining = True
+            else:
+                block['nonce'] += 1
+
+                encoded_block = json.dumps(block, sort_keys=True).encode()
+                new_hash = hashlib.sha256(encoded_block).hexdigest()
+
+        block['hash'] = new_hash
+
+        # Add new block to the chain
+        cur.execute("INSERT INTO blockchain_chain(block, nonce, hash, prev_hash, timestamp, data) VALUES(%s, %s, %s, %s, %s, %s)",
+                    (block['index'], block['nonce'], block['hash'], block['prev_hash'], block['timestamp'], json.dumps(block['data'])))
+        mysql.connection.commit()
+
+        cur.close()
+
+        return block
