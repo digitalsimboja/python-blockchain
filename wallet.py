@@ -2,7 +2,6 @@ from fastecdsa import curve, ecdsa, keys
 from fastecdsa.keys import export_key, import_key, gen_keypair
 from datetime import datetime
 from uuid import uuid4
-import hashlib
 import json
 
 
