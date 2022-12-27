@@ -1,15 +1,7 @@
 from datetime import datetime
 import hashlib
 import json
-import threading
-from urllib.parse import urlparse
-from flask import Flask, jsonify, request
-from flask_mysqldb import MySQL
 from fastecdsa import curve, ecdsa, keys
-from fastecdsa.keys import export_key, import_key, gen_keypair
-import requests
-from uuid import uuid4
-import zmq
 
 
 class Block:
@@ -30,7 +22,7 @@ class Blockchain:
         block['index'] = 1
         block['prev_hash'] = '0000000000'
         block['nonce'] = 123
-        block['data'] = 'This is the genesis block of skolo-online python blockchain'
+        block['data'] = 'This is the genesis block of the python blockchain'
         block['timestamp'] = genesis_time.strftime('%Y-%m-%d %H:%M:%S.%f')
 
         encode_block = json.dumps(block, sort_keys=True).encode()
