@@ -96,7 +96,7 @@ def add_transaction():
     }
 
     priv_key, pub_key = import_key(
-        '/home/sunday/dev/simple-blockchain/keys/secp256k1.key')
+        '/home/sunday/dev/keys/secp256k1.key')
 
     transaction = wallet.create_transaction(data)
     string_transaction = json.dumps(transaction, sort_keys=True).encode()
