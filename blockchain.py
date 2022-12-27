@@ -147,12 +147,63 @@ class Blockchain:
 
                 signature = eval(sig)
 
-                pub, key2 = keys.get_public_keys_from_sig(signature, string_transaction, curve=curve.secp256k1, hashfunc=ecdsa.sha256)
+                pub, key2 = keys.get_public_keys_from_sig(
+                    signature, string_transaction, curve=curve.secp256k1, hashfunc=ecdsa.sha256)
 
-                is_valid = ecdsa.verify(signature, string_transaction, pub, curve.secp256k1, ecdsa.sha256)
+                is_valid = ecdsa.verify(
+                    signature, string_transaction, pub, curve.secp256k1, ecdsa.sha256)
 
                 if is_valid:
                     verified_transactions.append(data)
-        
+
         cur.close()
         return verified_transactions
+
+    def check_valid_chain(self, chain, mysql):
+        first_block = chain[0]
+
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM blockchain_chain WHERE id = 1")
+        genesis_block = cur.fetchone()
+
+        # Confirm that the chain received has the same genesis chain as that in the blockchain
+        encoded_block_1 = json.dumps(first_block, sort_keys=True).encode()
+        hash_1 = hashlib.sha256(encoded_block_1).hexdigest()
+
+        encoded_block_2 = json.dumps(genesis_block, sort_keys=True).encode()
+        hash_2 = hashlib.sha256(encoded_block_2).hexdigest()
+
+        if not hash_1 == hash_2:
+            print(
+                "The chain fails the validity check comparing the hashes of the genesis blocks")
+            return False
+
+        cur.execute("SELECT * FROM blockchain_chain")
+        ourChain = cur.fetcall()
+
+        # Check the hash of all blocks
+        block_index = 1
+        while block_index < len(ourChain):
+            block = chain[block_index]
+            our_block = ourChain[block_index]
+
+            encoded_block_1 = json.dumps(block, sort_keys=True).encode()
+            hash_1 = hashlib.sha256(encoded_block_1).hexdigest()
+
+            encoded_block_2 = json.dumps(our_block, sort_keys=True).encode()
+            hash_2 = hashlib.sha256(encoded_block_2).hexdigest()
+
+            if not hash_1 == hash_2:
+                print('validity failed comparing #hash for block at index {}'.format(
+                    block_index))
+                return False
+
+            if not block['nonce'] == our_block['nonce']:
+                print('validity failed comparing the nonce values and index {}'.format(
+                    block_index))
+                return False
+            
+            block_index +=1
+        
+        cur.close()
+        return True
