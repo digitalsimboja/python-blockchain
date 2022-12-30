@@ -10,6 +10,8 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 # Dependency
+
+
 def get_db():
     db = SessionLocal()
     try:
@@ -17,25 +19,43 @@ def get_db():
     finally:
         db.close()
 
-@app.post("/", response_model=schemas.BlockchainChain)
-def create_genesis_block(db: Session = Depends(get_db)):
-    genesis_block = blockchain.create_genesis_block(db)
-    
-    return genesis_block
-
-@app.post("/add-transaction", response_model=schemas.BlockchainTransaction)
-def add_transaction(transaction: schemas.BlockchainTransactionCreate, db: Session = Depends(get_db)):
-    db_transaction = blockchain.get_transactions(db, transaction_id=transaction.transaction_id)
-    if db_transaction:
-        raise HTTPException(status_code=400, detail="Transaction already exists")
-    trx =  blockchain.add_blockchain_transaction(db=db, transaction=transaction)
-    print(trx)
-
-    return trx
 
 @app.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "Welcome to the Python Blockchain"}
+
+
+@app.post("/", response_model=schemas.BlockchainChain)
+def create_genesis_block(db: Session = Depends(get_db)):
+    genesis_block = blockchain.create_genesis_block(db)
+
+    return genesis_block
+
+
+@app.post("/add-transaction", response_model=schemas.BlockchainTransaction)
+def add_transaction(transaction: schemas.BlockchainTransactionCreate, db: Session = Depends(get_db)):
+    # Check if transaction already exists in the database
+    db_transaction = blockchain.get_transaction_by_id(
+        db, transaction_id=transaction.transaction_id)
+    if db_transaction:
+        raise HTTPException(
+            status_code=400, detail="Transaction already exists")
+    trx = blockchain.add_blockchain_transaction(db=db, transaction=transaction)
+
+    return trx
+
+
+@app.get("/transactions/{transaction_id}", response_model=schemas.BlockchainTransaction)
+def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
+    db_transaction = blockchain.get_transaction_by_id(db, transaction_id=transaction_id)
+    if db_transaction is None:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return db_transaction
+
+@app.post("/mine", response_model=schemas.BlockchainChain)
+def mine_block(data: str, db: Session = Depends(get_db)):
+    blk = blockchain.mine_block(data= data, db=db)
+
 
 
 # from flask import Flask, render_template, request, jsonify

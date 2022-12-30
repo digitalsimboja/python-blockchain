@@ -10,7 +10,7 @@ class BlockchainChainBase(BaseModel):
     hash: str
     prev_hash: str
     timestamp: datetime = None
-    data: dict = None
+    data: str
 
 
 class BlockchainChainCreate(BlockchainChainBase):
@@ -26,7 +26,7 @@ class BlockchainChain(BlockchainChainBase):
 class BlockchainTransactionBase(BaseModel):
     transaction_id: str
     signature: str
-    transaction: dict = None
+    transaction: str
     pub_key: str
     timestamp: datetime = None
 

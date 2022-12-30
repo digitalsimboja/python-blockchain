@@ -7,10 +7,10 @@ class BlockchainChain(Base):
     __tablename__ = "blockchain_chain"
 
     id = Column(Integer, primary_key=True, index=True)
-    block = Column(Integer)
+    block = Column(Integer, unique=True, index=True)
     nonce = Column(Integer, unique=True)
     prev_hash = Column(String)
-    data = Column(PickleType)
+    data = Column(String)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     hash = Column(String)
     
@@ -24,5 +24,5 @@ class BlockchainTransaction(Base):
     transaction_id = Column(String, unique=True)
     pub_key = Column(String)
     signature = Column(String)    
-    transaction = Column(PickleType)
+    transaction = Column(String)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
