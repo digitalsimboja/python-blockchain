@@ -1,4 +1,5 @@
 from typing import List, Dict
+from datetime import datetime
 
 from pydantic import BaseModel
 
@@ -8,7 +9,8 @@ class BlockchainChainBase(BaseModel):
     nonce: int
     hash: str
     prev_hash: str
-    data: Dict = {}
+    timestamp: datetime = None
+    data: dict = None
 
 
 class BlockchainChainCreate(BlockchainChainBase):
@@ -24,8 +26,9 @@ class BlockchainChain(BlockchainChainBase):
 class BlockchainTransactionBase(BaseModel):
     transaction_id: str
     signature: str
-    transaction: Dict = {}
+    transaction: dict = None
     pub_key: str
+    timestamp: datetime = None
 
 
 class BlockchainTransactionCreate(BlockchainTransactionBase):

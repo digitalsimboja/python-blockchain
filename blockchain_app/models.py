@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import Column, Text, Integer, String, DateTime, PickleType
+from sqlalchemy import Column, Integer, String, DateTime, PickleType
 
 from .database import Base
 
@@ -7,7 +7,7 @@ class BlockchainChain(Base):
     __tablename__ = "blockchain_chain"
 
     id = Column(Integer, primary_key=True, index=True)
-    block = Column(String, unique=True, index=True)
+    block = Column(Integer, unique=True, index=True)
     nonce = Column(Integer, unique=True)
     hash = Column(String)
     prev_hash = Column(String)
