@@ -7,12 +7,14 @@ class BlockchainChain(Base):
     __tablename__ = "blockchain_chain"
 
     id = Column(Integer, primary_key=True, index=True)
-    block = Column(Integer, unique=True, index=True)
+    block = Column(Integer)
     nonce = Column(Integer, unique=True)
-    hash = Column(String)
     prev_hash = Column(String)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     data = Column(PickleType)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    hash = Column(String)
+    
+    
 
 # Model for creating transaction pool
 class BlockchainTransaction(Base):

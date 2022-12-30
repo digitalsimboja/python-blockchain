@@ -17,13 +17,21 @@ def get_db():
     finally:
         db.close()
 
+@app.post("/", response_model=schemas.BlockchainChain)
+def create_genesis_block(db: Session = Depends(get_db)):
+    genesis_block = blockchain.create_genesis_block(db)
+    
+    return genesis_block
 
 @app.post("/add-transaction", response_model=schemas.BlockchainTransaction)
 def add_transaction(transaction: schemas.BlockchainTransactionCreate, db: Session = Depends(get_db)):
-    db_transaction = blockchain.get_transactions(db, id=transaction.transaction_id)
+    db_transaction = blockchain.get_transactions(db, transaction_id=transaction.transaction_id)
     if db_transaction:
         raise HTTPException(status_code=400, detail="Transaction already exists")
-    return blockchain.k(db=db, transaction=transaction)
+    trx =  blockchain.add_blockchain_transaction(db=db, transaction=transaction)
+    print(trx)
+
+    return trx
 
 @app.get("/")
 async def root():

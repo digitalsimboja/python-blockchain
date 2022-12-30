@@ -13,10 +13,6 @@ class Wallet:
                    filepath='/home/sunday/dev/keys/secp256k1.key')
         export_key(pub_key, curve=curve.secp256k1,
                    filepath='/home/sunday/dev/keys/secp256k1.pub')
-
-        print(priv_key)
-        print(pub_key)
-
         return True
 
     def generate_private_key(self):
