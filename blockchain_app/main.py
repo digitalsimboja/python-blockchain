@@ -1,4 +1,5 @@
 from typing import List
+
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
@@ -55,6 +56,8 @@ def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
 @app.post("/mine", response_model=schemas.BlockchainChain)
 def mine_block(data: str, db: Session = Depends(get_db)):
     blk = blockchain.mine_block(data= data, db=db)
+
+    return blk
 
 
 

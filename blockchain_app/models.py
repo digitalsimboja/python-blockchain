@@ -1,5 +1,6 @@
 import datetime
-from sqlalchemy import Column, Integer, String, DateTime, PickleType
+from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy.orm import relationship
 
 from .database import Base
 
@@ -13,6 +14,9 @@ class BlockchainChain(Base):
     data = Column(String)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     hash = Column(String)
+
+    def __getitem__(self, field):
+        return self.__dict__[field]
     
     
 
@@ -26,3 +30,7 @@ class BlockchainTransaction(Base):
     signature = Column(String)    
     transaction = Column(String)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+
+    def __getitem__(self, field):
+        return self.__dict__[field]
+
