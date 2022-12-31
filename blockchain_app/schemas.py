@@ -1,42 +1,47 @@
-from typing import List, Dict
+from typing import List
 from datetime import datetime
 
 from pydantic import BaseModel
 
 
-class BlockchainChainBase(BaseModel):
-    block: int
+class BlockBase(BaseModel):
+    index: int
+    transactions: list
+    timestamp: datetime = None
     nonce: int
-    hash: str
     prev_hash: str
-    timestamp: datetime = None
-    data: str
+    hash: str
 
 
-class BlockchainChainCreate(BlockchainChainBase):
+class BlockCreate(BlockBase):
     pass
 
-class BlockchainChain(BlockchainChainBase):
+class Block(BlockBase):
     id: int
 
     class Config:
         orm_mode = True
 
 
-class BlockchainTransactionBase(BaseModel):
+class TransactionBase(BaseModel):
     transaction_id: str
-    signature: str
-    transaction: str
     pub_key: str
+    signature: str
+    data: str
     timestamp: datetime = None
 
 
-class BlockchainTransactionCreate(BlockchainTransactionBase):
+class TransactionCreate(TransactionBase):
     pass
 
 
-class BlockchainTransaction(BlockchainTransactionBase):
+class Transaction(TransactionBase):
     id: int
 
     class Config:
         orm_mode = True
+
+
+class Blockchain(BaseModel):
+    id: int
+    chain: list

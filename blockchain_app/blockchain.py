@@ -1,115 +1,229 @@
 from datetime import datetime
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 import random
+import logging
 
 import hashlib
 import json
+from fastecdsa import curve, ecdsa, keys
 
 from . import models, schemas
 
+class Blockchain:
+    def __init__(self) -> None:
+        self.transaction_pool = []
+        self.chain = []
 
-def create_genesis_block(db: Session):
+    def create_genesis_block(self, db: Session):
 
-    block = {}
-    block['index'] = 1
-    block['nonce'] = 123
-    block['prev_hash'] = '0000000000'
-    block['data'] = "This is the genesis block of the python blockchain"
+        block = {}
+        block['index'] = 1
+        block['nonce'] = 123
+        block['prev_hash'] = '0000000000'
+        block['transactions'] = [
+            "This is the genesis block of the python blockchain"]
 
-    encode_block = json.dumps(block, sort_keys=True).encode()
-    new_hash = hashlib.sha256(encode_block).hexdigest()
-
-    block['hash'] = new_hash
-
-    # Persist the genesis block to the blockchain
-    db_chain = models.BlockchainChain(
-        block=block['index'], nonce=block['nonce'], prev_hash=block['prev_hash'], data=block['data'], hash=block['hash'])
-    db.add(db_chain)
-    db.commit()
-    db.refresh(db_chain)
-
-    return db_chain
-
-
-def add_blockchain_transaction(db: Session, transaction: schemas.BlockchainTransaction):
-    # Transaction does not exist so add to Database
-    transaction_string = json.dumps(
-        transaction.transaction, sort_keys=True).encode()
-    transaction_signature = json.dumps(transaction.signature)
-    db_transaction = models.BlockchainTransaction(
-        transaction_id=transaction.transaction_id, signature=transaction_signature, transaction=transaction_string, pub_key=transaction.pub_key)
-    db.add(db_transaction)
-    db.commit()
-    db.refresh(db_transaction)
-
-    return db_transaction
-
-
-def mine_block(db: Session, data: str):
-    """
-        Mines a new block and adds to the blockchain
-    """
-    previous_hash = ""
-    block = {}
-    # block['nonce'] = random.getrandbits(64)
-    block['nonce'] = 123
-    block['data'] = data
-
-    # get the chains
-    chain = get_chains(db)
-    current_index = len(chain) + 1
-    chain_length = len(chain)
-    last_block = get_chain_by_id(db=db, chainId=chain_length)
-    previous_hash = last_block['hash']
-
-    block['index'] = current_index
-    block['prev_hash'] = previous_hash
-
-    mining = False
-    while mining is False:
         encode_block = json.dumps(block, sort_keys=True).encode()
         new_hash = hashlib.sha256(encode_block).hexdigest()
 
-        if new_hash[:5] == '00009':
-            mining = True
-        else:
-            block['nonce'] += 1
-            encoded_block = json.dumps(block, sort_keys=True).encode()
-            new_hash = hashlib.sha256(encoded_block).hexdigest()
+        block['hash'] = new_hash
 
-    block['hash'] = new_hash
-
-    # New block is mined, persist it to the chain
-    db_chain = models.BlockchainChain(
-        block=block['index'], nonce=block['nonce'], prev_hash=block['prev_hash'], data=block['data'], hash=block['hash'])
-    db.add(db_chain)
-    db.commit()
-    db.refresh(db_chain)
+        # Persist the genesis block to the blockchain
+        genesis_block = models.Block(
+            index=block['index'], transactions=block['transactions'], nonce=block['nonce'], prev_hash=block['prev_hash'], hash=block['hash'])
+        
+        self.chain.append(genesis_block)
+        # add the new block to the block chain
+        
+        db_chain = models.Blockchain(
+            chain=self.chain
+        )
     
-    return db_chain
+        try:
+            db.add_all([genesis_block, db_chain])
+            db.commit()
+            db.refresh(genesis_block)
+            db.refresh(db_chain)
+
+            return genesis_block
+        except SQLAlchemyError as e:
+            db.rollback()
+            logging.error(
+                "Failed to Commit because of {error}. Doing Rollback".format(error=e))
 
 
-def get_chains(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.BlockchainChain).offset(skip).limit(limit).all()
+    def create_transaction(self, db: Session, transaction: schemas.Transaction):
+
+        transaction_string = json.dumps(
+            transaction.data, sort_keys=True).encode()
+        transaction_signature = json.dumps(transaction.signature)
+
+        #TODO: verify if the sender is actually the sender
+        db_transaction = models.Transaction(
+            transaction_id=transaction.transaction_id, signature=transaction_signature, data=transaction_string, pub_key=transaction.pub_key)
+        db.add(db_transaction)
+
+        try:
+            db.commit()
+            db.refresh(db_transaction)
+
+        except SQLAlchemyError as e:
+            db.rollback()
+            logging.error(
+                "Failed to Commit because of {error}. Doing Rollback".format(error=e))
+
+        # get instance of  the transaction pool and check if the pool has reached 100
+        if len(self.transaction_pool) + 1 == 5:
+            self.transaction_pool.append(transaction.data)
+            print("Transaction pool checked, mining a new block....", len(transaction_string))
+            self.mine(self.transaction_pool, db=db)
+
+        else:
+            self.transaction_pool.append(transaction.data)
+            print("Transaction pool checked, not mining a new block....", len(self.transaction_pool))
+
+        return db_transaction
 
 
-def get_transactions(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.BlockchainTransaction).offset(skip).limit(limit).all()
+    def mine(self, transactions, db: Session):
+        """
+        This function serves as an interface to add the pending
+        transactions from the pool to the blockchain by adding them to the block
+        and figuring out Proof Of Work.
+        """
+
+        new_block = {}
+        blocks = self.get_blocks(db=db)
+
+        current_index = len(blocks) + 1
+        chain_length = len(blocks)
+        last_block = self.get_block_by_id(db=db, blockIndex=chain_length)
+    
+        previous_hash = last_block['hash']
+
+        new_block['index'] = current_index
+        # When the node creates blocks, we create a Merkle tree of 100 messages. 
+        # This produces Merkle root hash. Sign this hash and persist it.
+        # Ignoring this for now
+        
+        new_block['transactions'] = transactions
+
+        new_block['nonce'] = 123
+        new_block['prev_hash'] = previous_hash
+
+        # proof = proof_of_work(new_block)
+        # add_block(new_block, proof)
+
+        mining = False
+        while mining is False:
+            # encode the new block received
+            print("Mining a new block with the nonce: ", new_block['nonce'])
+            encode_block = json.dumps(new_block, sort_keys=True).encode()
+            new_hash = hashlib.sha256(encode_block).hexdigest()
+
+            if new_hash[:5] == '00009':
+                mining = True
+            else:
+                new_block['nonce'] += 1
+                encoded_block = json.dumps(new_block, sort_keys=True).encode()
+                new_hash = hashlib.sha256(encoded_block).hexdigest()
+
+        new_block['hash'] = new_hash
+
+        # New block is mined, persist it to the chain, with the new hash
+        db_block = models.Block(
+            index=new_block['index'], transactions=new_block['transactions'], nonce=new_block['nonce'], prev_hash=new_block['prev_hash'], hash=new_block['hash'])
+        db.add(db_block)
+        # add the new block to the block chain
+        db_chain = models.Blockchain(
+            chain=[new_block]
+        )
+        db.add(db_chain)
+        try:
+            db.commit()
+            db.refresh(db_block)
+            db.refresh(db_chain)
+
+            
+        except SQLAlchemyError as e:
+            db.rollback()
+            logging.error(
+                "Failed to Commit because of {error}. Doing Rollback".format(error=e))
+
+        transaction_pool = []
+        print("Block #{} is mined.".format(current_index))
+        
+        return db_block
+
+    def get_transaction_by_id(self, db: Session, transaction_id: int):
+        return db.query(models.Transaction).filter(models.Transaction.transaction_id == transaction_id).first()
 
 
-def get_transaction_by_id(db: Session, transaction_id: int):
-    return db.query(models.BlockchainTransaction).filter(models.BlockchainTransaction.transaction_id == transaction_id).first()
+    def get_blocks(self, db: Session, skip: int = 0, limit: int = 100):
+        return db.query(models.Block).offset(skip).limit(limit).all()
 
 
-def get_chain_by_id(db: Session, chainId: int):
-    return db.query(models.BlockchainChain).filter(models.BlockchainChain.id == chainId).first()
+    def get_block_by_id(self, db: Session, blockIndex: int):
+        return db.query(models.Block).filter(models.Block.index == blockIndex).first()
+
+    
 
 
-# def create_chain(db: Session, chain: schemas.BlockchainChainCreate):
-#     db_chain = models.BlockchainChain(block=chain.block, nonce=chain.nonce, hash=chain.hash,
-#                                       prev_hash=chain.prev_hash, timestamp=chain.timestamp, data=chain.data)
-#     db.add(db_chain)
-#     db.commit()
-#     db.refresh(db_chain)
+# def proof_of_work(block):
+#     mining = False
+#     while mining is False:
+#         # encode the new block received
+#         encode_block = json.dumps(block, sort_keys=True).encode()
+#         new_hash = hashlib.sha256(encode_block).hexdigest()
 
-#     return db_chain
+#         if new_hash[:5] == '00009':
+#             mining = True
+#         else:
+#             block['nonce'] += 1
+#             encoded_block = json.dumps(block, sort_keys=True).encode()
+#             new_hash = hashlib.sha256(encoded_block).hexdigest()
+
+#     block['hash'] = new_hash
+
+#     return block['hash']
+
+
+# def add_block(block, proof):
+#     pass
+
+
+
+
+
+# def generate_keypair():
+#     success = wallet.generate_key_pair()
+
+#     return success
+
+# def check_valid_transactions(db: Session):
+#     verified_transactions = []
+
+#     transactions = get_transactions(db)
+
+#     print("Verified transactions: ", transactions)
+#     for trx in transactions:
+#         data = json.loads(trx['transaction'])
+#         signature = trx['signature']
+#         string_transaction = json.dumps(data, sort_keys=True).encode()
+#         signature = eval(signature)
+
+#         pub, key2 = keys.get_public_keys_from_sig(
+#             signature, string_transaction, curve=curve.secp256k1, hashfunc=ecdsa.sha256)
+
+#         is_valid = ecdsa.verify(
+#             signature, string_transaction, pub, curve.secp256k1, ecdsa.sha256)
+
+#         if is_valid:
+#             verified_transactions.append(data)
+
+#     return verified_transactions
+
+
+# def get_transactions(db: Session, skip: int = 0, limit: int = 100):
+#     return db.query(models.BlockchainTransaction).offset(skip).limit(limit).all()

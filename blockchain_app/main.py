@@ -3,7 +3,8 @@ from typing import List
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
-from . import blockchain, models, schemas
+from . import models, schemas, blockchain
+
 from .database import SessionLocal, engine
 
 models.Base.metadata.create_all(bind=engine)
@@ -11,6 +12,7 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 # Dependency
+chain = blockchain.Blockchain()
 
 
 def get_db():
@@ -26,39 +28,59 @@ async def root():
     return {"message": "Welcome to the Python Blockchain"}
 
 
-@app.post("/", response_model=schemas.BlockchainChain)
+@app.post("/", response_model=schemas.Block)
 def create_genesis_block(db: Session = Depends(get_db)):
-    genesis_block = blockchain.create_genesis_block(db)
+    genesis_block = chain.create_genesis_block(db)
 
     return genesis_block
 
-
-@app.post("/add-transaction", response_model=schemas.BlockchainTransaction)
-def add_transaction(transaction: schemas.BlockchainTransactionCreate, db: Session = Depends(get_db)):
+# endpoint to submit a new transaction. This will be used by
+# our application to add new data  to the blockchain
+@app.post('/new_transaction', response_model=schemas.Transaction)
+def add_transaction(transaction: schemas.TransactionCreate, db: Session = Depends(get_db)):
     # Check if transaction already exists in the database
-    db_transaction = blockchain.get_transaction_by_id(
+    # Validate the message/transaction
+    #  1:   The message schema is valid.
+    # 2:  The message is signed.
+    # 3:  The signature is valid and the message indeed came from the client who sent it.
+    db_transaction = chain.get_transaction_by_id(
         db, transaction_id=transaction.transaction_id)
     if db_transaction:
         raise HTTPException(
             status_code=400, detail="Transaction already exists")
-    trx = blockchain.add_blockchain_transaction(db=db, transaction=transaction)
+    trx = chain.create_transaction(db=db, transaction=transaction)
 
     return trx
 
 
-@app.get("/transactions/{transaction_id}", response_model=schemas.BlockchainTransaction)
-def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
-    db_transaction = blockchain.get_transaction_by_id(db, transaction_id=transaction_id)
-    if db_transaction is None:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-    return db_transaction
+# @app.post("/create-keypair")
+# def generate_keypair():
+#     success = blockchain.generate_keypair()
+#     if success:
+#         return True
+#     else:
+#         raise HTTPException(
+#             status_code=400, detail="Failed to generate keypair")
 
-@app.post("/mine", response_model=schemas.BlockchainChain)
-def mine_block(data: str, db: Session = Depends(get_db)):
-    blk = blockchain.mine_block(data= data, db=db)
 
-    return blk
+# @app.get("/transactions/{transaction_id}", response_model=schemas.BlockchainTransaction)
+# def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
+#     db_transaction = blockchain.get_transaction_by_id(db, transaction_id=transaction_id)
+#     if db_transaction is None:
+#         raise HTTPException(status_code=404, detail="Transaction not found")
+#     return db_transaction
 
+# @app.post("/mine", response_model=schemas.BlockchainChain)
+# def mine_block(data: str, db: Session = Depends(get_db)):
+#     blk = blockchain.mine_block(data= data, db=db)
+
+#     return blk
+
+# @app.get("/check-transactions", response_model=schemas.BlockchainTransaction)
+# def get_valid_transactions(db: Session = Depends(get_db)):
+#     valid_transactions = blockchain.check_valid_transactions(db=db)
+
+#     return valid_transactions
 
 
 # from flask import Flask, render_template, request, jsonify

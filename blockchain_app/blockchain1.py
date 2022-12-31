@@ -6,57 +6,6 @@ from fastecdsa import curve, ecdsa, keys
 
 class Blockchain:
 
-    def mine(self, transactions, mysql):
-        """
-        Mines a new block and adds to the blockchain
-        """
-
-        t_time = datetime.now()
-        previous_hash = ""
-        cur = mysql.connection.cursor()
-
-        block = {}
-        block['nonce'] = 123
-        block['data'] = transactions
-        block['timestamp'] = t_time.strftime('%Y-%m-%d %H:%M:%S.%f')
-
-        result = cur.execute("SELECT * FROM blockchain_chain")
-        chain = cur.fetchall
-        current_index = len(chain) + 1
-        if result > 0:
-            chain_length = len(chain)
-            cur.execute(
-                'SELECT * FROM blockchain_chain WHERE block=%s', [chain_length])
-            last_block = cur.fetchone()
-            previous_hash = last_block['hash']
-
-        block['index'] = current_index
-        block['prev_hash'] = previous_hash
-
-        mining = False
-        while mining is False:
-            encode_block = json.dumps(block, sort_keys=True).encode()
-            new_hash = hashlib.sha256(encode_block).hexdigest()
-
-            if new_hash[:5] == '00009':
-                mining = True
-            else:
-                block['nonce'] += 1
-
-                encoded_block = json.dumps(block, sort_keys=True).encode()
-                new_hash = hashlib.sha256(encoded_block).hexdigest()
-
-        block['hash'] = new_hash
-
-        # New block is mined, persist it to the chain
-        cur.execute("INSERT INTO blockchain_chain(block, nonce, hash, prev_hash, timestamp, data) VALUES(%s, %s, %s, %s, %s, %s)",
-                    (block['index'], block['nonce'], block['hash'], block['prev_hash'], block['timestamp'], json.dumps(block['data'])))
-
-        mysql.connection.commit()
-
-        cur.close()
-
-        return block
 
     def check_valid_transactions(self, mysql):
         """
