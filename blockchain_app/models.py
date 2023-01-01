@@ -25,6 +25,8 @@ class Blockchain(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     chain = Column(MutableList.as_mutable(PickleType), default=[])
+    # hash = Column(String)
+    # signed_hash = Column(String)
 
     def __getitem__(self, field):
         return self.__dict__[field]

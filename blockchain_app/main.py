@@ -43,6 +43,7 @@ def add_transaction(transaction: schemas.TransactionCreate, db: Session = Depend
     #  1:   The message schema is valid.
     # 2:  The message is signed.
     # 3:  The signature is valid and the message indeed came from the client who sent it.
+    # TODO: verify if the sender is actually the sender
     db_transaction = chain.get_transaction_by_id(
         db, transaction_id=transaction.transaction_id)
     if db_transaction:
@@ -174,39 +175,6 @@ def add_transaction(transaction: schemas.TransactionCreate, db: Session = Depend
 #         transaction1))
 
 #     return "<h3>If this is true, the signatures did match - or else. ---> {}</h3>".format(is_valid)
-
-
-# @app.route('/add-transaction', methods=['POST'])
-# def add_transaction():
-#     data = {
-#         "sender": request.form['sender'],
-#         "contact": request.form['contact'],
-#         "messages": request.form['messages']
-#     }
-
-#     priv_key, pub_key = import_key(
-#         '/home/sunday/dev/keys/secp256k1.key')
-
-#     transaction = wallet.create_transaction(data)
-#     string_transaction = json.dumps(transaction, sort_keys=True).encode()
-#     signature = ecdsa.sign(string_transaction, priv_key,
-#                            curve=curve.secp256k1, hashfunc=ecdsa.sha256)
-
-#     index = blockchain.add_transaction(
-#         pub_key, transaction, signature, transaction['transaction_id'], mysql)
-#     is_valid = ecdsa.verify(signature, string_transaction,
-#                             pub_key, curve.secp256k1, ecdsa.sha256)
-
-#     # Publish the transaction on the network
-#     transaction_publish = transaction
-#     transaction_publish['signature'] = json.dumps(signature)
-#     peerserver.broadcast_transaction(
-#         transaction_publish, transaction_publisher)
-
-#     transaction_id = transaction['transaction_id']
-#     response = {'message': 'Transaction id: {} will be added to block {}'.format(transaction_id, index),
-#                 'transaction_details': transaction, 'signature_valid': is_valid}
-#     return jsonify(response), 201
 
 
 # # Get the list of transactions
