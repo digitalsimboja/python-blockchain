@@ -9,7 +9,7 @@ class Block(Base):
     __tablename__ = "blocks"
 
     id = Column(Integer, primary_key=True, index=True)
-    index = Column(Integer, unique=True, index=True)
+    block = Column(Integer, unique=True)
     transactions = Column(MutableList.as_mutable(PickleType), default=[])
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     nonce = Column(Integer, unique=True)
@@ -24,7 +24,7 @@ class Blockchain(Base):
     __tablename__ = "blockchain"
 
     id = Column(Integer, primary_key=True, index=True)
-    chain = Column(MutableList.as_mutable(PickleType), default=[])
+    blocks = Column(MutableList.as_mutable(PickleType), default=[])
     # hash = Column(String)
     # signed_hash = Column(String)
 

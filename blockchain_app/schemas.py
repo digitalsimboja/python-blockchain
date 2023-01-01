@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 
 class BlockBase(BaseModel):
-    index: int
+    block: int
     transactions: list
     timestamp: datetime = None
     nonce: int
@@ -15,6 +15,7 @@ class BlockBase(BaseModel):
 
 class BlockCreate(BlockBase):
     pass
+
 
 class Block(BlockBase):
     id: int
@@ -42,6 +43,16 @@ class Transaction(TransactionBase):
         orm_mode = True
 
 
-class Blockchain(BaseModel):
+class BlockchainBase(BaseModel):
+    blocks: list
+
+
+class BlockchainCreate(BlockchainBase):
+    pass
+
+
+class Blockchain(BlockchainBase):
     id: int
-    chain: list
+
+    class Config:
+        orm_mode = True

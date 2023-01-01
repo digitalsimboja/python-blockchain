@@ -15,12 +15,12 @@ from . import models, schemas
 class Blockchain:
     def __init__(self) -> None:
         self.transaction_pool = []
-        self.chain = []
+        self.blocks = []
 
     def create_genesis_block(self, db: Session):
 
         block = {}
-        block['index'] = 1
+        block['block'] = 1
         block['nonce'] = 123
         block['prev_hash'] = '0000000000'
         block['transactions'] = [
@@ -35,15 +35,14 @@ class Blockchain:
 
         # Persist the genesis block to the blockchain
         genesis_block = models.Block(
-            index=block['index'], transactions=block['transactions'], nonce=block['nonce'], prev_hash=block['prev_hash'], hash=block['hash'])
+            block=block['block'], transactions=block['transactions'], nonce=block['nonce'], prev_hash=block['prev_hash'], hash=block['hash'])
 
-        self.chain.append(genesis_block)
+        self.blocks.append(genesis_block)
         # add the new block to the block chain
 
         db_chain = models.Blockchain(
-            chain=self.chain
+            blocks=self.blocks
         )
-
         try:
             db.add_all([genesis_block, db_chain])
             db.commit()
@@ -67,26 +66,26 @@ class Blockchain:
         db.add(db_transaction)
 
         try:
+            # get instance of  the transaction pool and check if the pool has reached 100
+            if len(self.transaction_pool) + 1 == 5:
+                self.transaction_pool.append(transaction.data)
+
+                _ = self.mine(self.transaction_pool, db=db)
+
+            else:
+                self.transaction_pool.append(transaction.data)
+                print("Transaction pool checked, not mining a new block....",
+                      len(self.transaction_pool))
+
             db.commit()
             db.refresh(db_transaction)
+
+            return db_transaction
 
         except SQLAlchemyError as e:
             db.rollback()
             logging.error(
                 "Failed to Commit because of {error}. Doing Rollback".format(error=e))
-
-        # get instance of  the transaction pool and check if the pool has reached 100
-        if len(self.transaction_pool) + 1 == 5:
-            self.transaction_pool.append(transaction.data)
-
-            self.mine(self.transaction_pool, db=db)
-
-        else:
-            self.transaction_pool.append(transaction.data)
-            print("Transaction pool checked, not mining a new block....",
-                  len(self.transaction_pool))
-
-        return db_transaction
 
     def mine(self, transactions, db: Session):
         """
@@ -95,37 +94,40 @@ class Blockchain:
         and figuring out Proof Of Work.
         """
 
-        last_block = self.get_last_block(db)
+        last_block = self.get_last_block(db)  # self.blocks[-1]
 
         previous_hash = last_block['hash']
 
-        current_index = last_block['index'] + 1
+        current_index = last_block['block'] + 1
 
         # When the node creates blocks, we create a Merkle tree of 100 messages.
         # This produces Merkle root hash. Sign this hash and persist it.
         # Ignoring this for now
         block = {}
-        block['index'] = current_index
+        block['block'] = current_index
         block['nonce'] = 123
         block['prev_hash'] = previous_hash
         block['transactions'] = transactions
 
         proof = self.proof_of_work(block)
-        self.add_block(block, proof, db=db)
+        added = self.add_block(block, proof, db=db)
 
-        self.transaction_pool = []
-        print("Block #{} is mined.".format(current_index))
+        if added:
+            self.transaction_pool = []
+            print("Block #{} is mined.".format(current_index))
 
-        return block
+        return False
 
     @staticmethod
     def proof_of_work(block):
+        
+        # encode the new block received
+        encode_block = json.dumps(block, sort_keys=True).encode()
+        new_hash = hashlib.sha256(encode_block).hexdigest()
+
         mining = False
         while mining is False:
-            # encode the new block received
             print("Mining a new block with the nonce: ", block['nonce'])
-            encode_block = json.dumps(block, sort_keys=True).encode()
-            new_hash = hashlib.sha256(encode_block).hexdigest()
 
             if new_hash[:5] == '00009':
                 mining = True
@@ -134,10 +136,7 @@ class Blockchain:
                 encoded_block = json.dumps(block, sort_keys=True).encode()
                 new_hash = hashlib.sha256(encoded_block).hexdigest()
 
-        block['hash'] = new_hash
-        print("New block mined  with hash: ", block['hash'])
-
-        return block['hash']
+        return new_hash
 
     def add_block(self, block, proof, db: Session):
         """
@@ -148,22 +147,24 @@ class Blockchain:
           in the chain match.
         """
 
-        last_block = self.get_last_block(db)  # Also: self.chain[-1]
+        last_block = self.get_last_block(db)  # Also: self.blocks[-1]
+
         previous_hash = last_block['hash']
+
         if previous_hash != block['prev_hash']:
             return False
-
+        
         if not Blockchain.is_valid_proof(block, proof):
             return False
 
         # New block is mined, persist it to the chain, with the new hash
         db_block = models.Block(
-            index=block['index'], transactions=block['transactions'], nonce=block['nonce'], timestamp=block['timestamp'], prev_hash=block['prev_hash'], hash=proof)
+            block=block['block'], transactions=block['transactions'], nonce=block['nonce'], prev_hash=block['prev_hash'], hash=proof)
 
         # Append and persist the new block to the block chain
-        self.chain.append(block)
+        self.blocks.append(block)
         db_chain = models.Blockchain(
-            chain=self.chain
+            blocks=self.blocks
         )
 
         try:
@@ -186,7 +187,7 @@ class Blockchain:
         return db.query(models.Block).offset(skip).limit(limit).all()
 
     def get_block_by_id(self, db: Session, blockIndex: int):
-        return db.query(models.Block).filter(models.Block.index == blockIndex).first()
+        return db.query(models.Block).filter(models.Block.block == blockIndex).first()
 
     def get_last_block(self, db: Session):
         blocks = self.get_blocks(db)
@@ -201,69 +202,40 @@ class Blockchain:
         return self.chain[-1]
 
     @classmethod
-    def is_valid_proof(cls, block, block_hash):
+    def is_valid_proof(cls, block, proof):
         """
         Check if block_hash is valid hash of block and satisfies
         the difficulty criteria.
         """
         encoded_block = json.dumps(block, sort_keys=True).encode()
         new_hash = hashlib.sha256(encoded_block).hexdigest()
-        print(new_hash == block_hash)
 
-        return (block_hash.startswith('00009') and block_hash == new_hash)
-
-
-# def proof_of_work(block):
-#     mining = False
-#     while mining is False:
-#         # encode the new block received
-#         encode_block = json.dumps(block, sort_keys=True).encode()
-#         new_hash = hashlib.sha256(encode_block).hexdigest()
-
-#         if new_hash[:5] == '00009':
-#             mining = True
-#         else:
-#             block['nonce'] += 1
-#             encoded_block = json.dumps(block, sort_keys=True).encode()
-#             new_hash = hashlib.sha256(encoded_block).hexdigest()
-
-#     block['hash'] = new_hash
-
-#     return block['hash']
+        return (proof.startswith('00009') and proof == new_hash)
 
 
-# def add_block(block, proof):
-#     pass
+def check_valid_transactions(db: Session):
+    verified_transactions = []
+
+    transactions = get_transactions(db)
+
+    print("Verified transactions: ", transactions)
+    for trx in transactions:
+        data = json.loads(trx['transaction'])
+        signature = trx['signature']
+        string_transaction = json.dumps(data, sort_keys=True).encode()
+        signature = eval(signature)
+
+        pub, key2 = keys.get_public_keys_from_sig(
+            signature, string_transaction, curve=curve.secp256k1, hashfunc=ecdsa.sha256)
+
+        is_valid = ecdsa.verify(
+            signature, string_transaction, pub, curve.secp256k1, ecdsa.sha256)
+
+        if is_valid:
+            verified_transactions.append(data)
+
+    return verified_transactions
 
 
-# def generate_keypair():
-#     success = wallet.generate_key_pair()
-
-#     return success
-
-# def check_valid_transactions(db: Session):
-#     verified_transactions = []
-
-#     transactions = get_transactions(db)
-
-#     print("Verified transactions: ", transactions)
-#     for trx in transactions:
-#         data = json.loads(trx['transaction'])
-#         signature = trx['signature']
-#         string_transaction = json.dumps(data, sort_keys=True).encode()
-#         signature = eval(signature)
-
-#         pub, key2 = keys.get_public_keys_from_sig(
-#             signature, string_transaction, curve=curve.secp256k1, hashfunc=ecdsa.sha256)
-
-#         is_valid = ecdsa.verify(
-#             signature, string_transaction, pub, curve.secp256k1, ecdsa.sha256)
-
-#         if is_valid:
-#             verified_transactions.append(data)
-
-#     return verified_transactions
-
-
-# def get_transactions(db: Session, skip: int = 0, limit: int = 100):
-#     return db.query(models.BlockchainTransaction).offset(skip).limit(limit).all()
+def get_transactions(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.BlockchainTransaction).offset(skip).limit(limit).all()
