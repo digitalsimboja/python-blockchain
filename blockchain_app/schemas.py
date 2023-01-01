@@ -26,8 +26,6 @@ class Block(BlockBase):
 
 class TransactionBase(BaseModel):
     transaction_id: str
-    pub_key: str
-    signature: str
     data: str
     timestamp: datetime = None
 

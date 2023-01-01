@@ -36,8 +36,6 @@ class Transaction(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     transaction_id = Column(String, unique=True)
-    pub_key = Column(String)
-    signature = Column(String)
     data = Column(String)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 

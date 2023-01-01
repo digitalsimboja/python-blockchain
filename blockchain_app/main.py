@@ -1,9 +1,12 @@
 from typing import List
-
+import requests
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
+from fastecdsa import curve, ecdsa, keys, point
+from fastecdsa.keys import export_key, import_key, gen_keypair
+import json
 
-from . import models, schemas, blockchain
+from . import models, schemas, blockchain, wallet
 
 from .database import SessionLocal, engine
 
@@ -13,6 +16,45 @@ app = FastAPI()
 
 # Dependency
 chain = blockchain.Blockchain()
+account = wallet.Wallet()
+account.generate_key_pair()
+
+# Construct a transaction 
+def send_transaction():
+    receiver_priv_key = account.generate_private_key()
+    receiver_pub_key = account.generate_public_key(receiver_priv_key)
+
+    data = "Buy me a coffee"
+    priv_key, pub_key = import_key(
+        '/home/sunday/dev/keys/secp256k1.key')
+
+    transaction = account.create_transaction(data)
+
+    string_transaction = json.dumps(transaction, sort_keys=True).encode()
+    signature = ecdsa.sign(string_transaction, priv_key,
+                           curve=curve.secp256k1, hashfunc=ecdsa.sha256)
+    transaction['signature'] = json.dumps(signature)
+    to_send = json.dumps(transaction, sort_keys=True)
+
+    verified = account.validate_transaction(to_send)
+
+    if verified:
+        send_tx = {
+            "transaction_id": "1",
+            "pub_key": "my_key",
+            "signature": "hash123",
+            "data": "Testing the api",
+            "timestamp": "2023-01-01T17:18:05.742Z"
+        }
+        trx = requests.post("http://new-transaction", send_tx)
+        print('Just received transaction broadcast {}: and added it to transaction pool'.format(
+            trx))
+    else:
+        print("You have sent an inbalid transaction")
+
+
+# call the send transaction function
+# send_transaction()
 
 
 def get_db():
@@ -25,7 +67,7 @@ def get_db():
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to the Python Blockchain"}
+    return account.generate_key_pair()
 
 
 @app.post("/", response_model=schemas.Block)
@@ -36,32 +78,20 @@ def create_genesis_block(db: Session = Depends(get_db)):
 
 # endpoint to submit a new transaction. This will be used by
 # our application to add new data  to the blockchain
-@app.post('/new_transaction', response_model=schemas.Transaction)
-def add_transaction(transaction: schemas.TransactionCreate, db: Session = Depends(get_db)):
-    # Check if transaction already exists in the database
-    # Validate the message/transaction
-    #  1:   The message schema is valid.
-    # 2:  The message is signed.
-    # 3:  The signature is valid and the message indeed came from the client who sent it.
-    # TODO: verify if the sender is actually the sender
+
+
+@app.post('/new-transaction', response_model=schemas.Transaction)
+def create_transaction(transaction: schemas.TransactionCreate, db: Session = Depends(get_db)):
     db_transaction = chain.get_transaction_by_id(
         db, transaction_id=transaction.transaction_id)
     if db_transaction:
         raise HTTPException(
             status_code=400, detail="Transaction already exists")
+
+    # Check if the message is signed by eval(transaction.signature)
     trx = chain.create_transaction(db=db, transaction=transaction)
 
     return trx
-
-
-# @app.post("/create-keypair")
-# def generate_keypair():
-#     success = blockchain.generate_keypair()
-#     if success:
-#         return True
-#     else:
-#         raise HTTPException(
-#             status_code=400, detail="Failed to generate keypair")
 
 
 # @app.get("/transactions/{transaction_id}", response_model=schemas.BlockchainTransaction)
@@ -71,11 +101,6 @@ def add_transaction(transaction: schemas.TransactionCreate, db: Session = Depend
 #         raise HTTPException(status_code=404, detail="Transaction not found")
 #     return db_transaction
 
-# @app.post("/mine", response_model=schemas.BlockchainChain)
-# def mine_block(data: str, db: Session = Depends(get_db)):
-#     blk = blockchain.mine_block(data= data, db=db)
-
-#     return blk
 
 # @app.get("/check-transactions", response_model=schemas.BlockchainTransaction)
 # def get_valid_transactions(db: Session = Depends(get_db)):

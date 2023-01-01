@@ -13,3 +13,6 @@ Install the requirements
 cd simple-blockchain
 
 ```
+## Test with Fastapi
+Generate Keypair by clicking the execute button on the `root` URL
+

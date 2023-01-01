@@ -59,10 +59,9 @@ class Blockchain:
 
         transaction_string = json.dumps(
             transaction.data, sort_keys=True).encode()
-        transaction_signature = json.dumps(transaction.signature)
 
         db_transaction = models.Transaction(
-            transaction_id=transaction.transaction_id, signature=transaction_signature, data=transaction_string, pub_key=transaction.pub_key)
+            transaction_id=transaction.transaction_id, data=transaction_string)
         db.add(db_transaction)
 
         try:
@@ -120,7 +119,7 @@ class Blockchain:
 
     @staticmethod
     def proof_of_work(block):
-        
+
         # encode the new block received
         encode_block = json.dumps(block, sort_keys=True).encode()
         new_hash = hashlib.sha256(encode_block).hexdigest()
@@ -153,7 +152,7 @@ class Blockchain:
 
         if previous_hash != block['prev_hash']:
             return False
-        
+
         if not Blockchain.is_valid_proof(block, proof):
             return False
 
@@ -218,7 +217,6 @@ def check_valid_transactions(db: Session):
 
     transactions = get_transactions(db)
 
-    print("Verified transactions: ", transactions)
     for trx in transactions:
         data = json.loads(trx['transaction'])
         signature = trx['signature']
@@ -238,4 +236,4 @@ def check_valid_transactions(db: Session):
 
 
 def get_transactions(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.BlockchainTransaction).offset(skip).limit(limit).all()
+    return db.query(models.Transaction).offset(skip).limit(limit).all()
