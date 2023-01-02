@@ -4,16 +4,20 @@ from datetime import datetime
 from uuid import uuid4
 import json
 from time import time
-
+import os
 
 class Wallet:
 
     def generate_key_pair(self):
         priv_key, pub_key = gen_keypair(curve.secp256k1)
+        if not os.path.exists("blockchain/keys"):
+            os.umask(0)
+            os.makedirs("blockchain/keys")
+            
         export_key(priv_key, curve=curve.secp256k1,
-                   filepath='/home/sunday/dev/keys/secp256k1.key')
+                   filepath=os.path.join("blockchain/keys/secp256k1.key"))
         export_key(pub_key, curve=curve.secp256k1,
-                   filepath='/home/sunday/dev/keys/secp256k1.pub')
+                   filepath=os.path.join("blockchain/keys/secp256k1.pub"))
         return True
 
     def generate_private_key(self):

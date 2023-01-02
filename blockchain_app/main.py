@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from fastecdsa import curve, ecdsa, keys, point
 from fastecdsa.keys import export_key, import_key, gen_keypair
 import json
+import os
 
 from . import models, schemas, blockchain, wallet
 
@@ -26,7 +27,7 @@ def send_transaction():
 
     data = "Buy me a coffee"
     priv_key, pub_key = import_key(
-        '/home/sunday/dev/keys/secp256k1.key')
+        os.path.join("blockchain/keys/secp256k1.key"))
 
     transaction = account.create_transaction(data)
     trans_result = transaction
@@ -49,7 +50,7 @@ def send_transaction():
 
 
 # call the send transaction function
-# send_transaction()
+send_transaction()
 
 
 def get_db():
