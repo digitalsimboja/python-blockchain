@@ -31,13 +31,30 @@ class Blockchain(Base):
     def __getitem__(self, field):
         return self.__dict__[field]
 
+
 class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, index=True)
-    transaction_id = Column(String, unique=True)
+    transaction_id = Column(String)
+    pub_key = Column(String)
     data = Column(String)
+    signature = Column(String)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 
     def __getitem__(self, field):
         return self.__dict__[field]
+
+
+class Node(Base):
+    __tablename__ = "nodes"
+
+    id: id = Column(Integer, primary_key=True, index=True)
+    url = Column(String)
+
+
+class Peer(Base):
+    __tablename__ = "peers"
+
+    id: id = Column(Integer, primary_key=True, index=True)
+    ip: Column(String)

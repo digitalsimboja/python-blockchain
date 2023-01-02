@@ -27,6 +27,7 @@ class Block(BlockBase):
 class TransactionBase(BaseModel):
     transaction_id: str
     data: str
+    pub_key: str
     timestamp: datetime = None
 
 
@@ -54,3 +55,35 @@ class Blockchain(BlockchainBase):
 
     class Config:
         orm_mode = True
+
+
+class NodeBase(BaseModel):
+    url: str
+
+
+class NodeBaseCreate(NodeBase):
+    pass
+
+
+class Node(NodeBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+class PeerBase(BaseModel):
+    ip: str
+
+
+class PeerBaseCreate(PeerBase):
+    pass
+
+
+class Peer(PeerBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+
+

@@ -2,7 +2,11 @@ from uuid import uuid4
 from urllib.parse import urlparse
 import zmq
 import json
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
+import logging
 
+from . import models, schemas
 
 
 class Peer2PeerServer:
@@ -12,24 +16,46 @@ class Peer2PeerServer:
         self.broadcast_trans_port = 22344
         self.broadcast_chain_port = 21344
 
-    def add_peer(self, address, mysql):
+    def add_peer(self, address, db: Session):
         parsed_url = urlparse(address)
         net = parsed_url.netloc
         net_object = net.split(':')
         peer_ip = net_object[0]
 
-        cur = mysql.connection.cursor()
-        cur.execute("INSERT INTO peerServer_nodes(nodes) VALUES(%s)", peer_ip)
-        cur.close()
+        db_peer = models.Peer(
+            ip=peer_ip
+        )
+        db.add(db_peer)
+
+        try:
+            db.commit()
+            db.refresh(db_peer)
+        except SQLAlchemyError as e:
+            db.rollback()
+            logging.error(
+                "Failed to Commit because of {error}. Doing Rollback".format(error=e))
+        finally:
+            db.close()
 
         return
 
-    def add_node(self, address, mysql):
+    def add_node(self, address, db: Session):
         parsed_url = urlparse(address)
 
-        cur = mysql.connection.cursor()
-        cur.execute("INSERT INTO blockchain_nodes(nodes) VALUES(%s)", parsed_url.netloc)
-        cur.close()
+        db_node = models.Node(
+            url=parsed_url
+        )
+        db.add(db_node)
+
+        try:
+            db.commit()
+            db.refresh(db_node)
+        except SQLAlchemyError as e:
+            db.rollback()
+            logging.error(
+                "Failed to Commit because of {error}. Doing Rollback".format(error=e))
+        finally:
+            db.close()
 
         return
 
@@ -43,7 +69,6 @@ class Peer2PeerServer:
         publisher.bind('tcp://*:{}'.format(self.broadcast_chain_port))
         return publisher
 
-
     def broadcast_transaction(self, transaction, publisher):
         j_transaction = json.dumps(transaction, sort_keys=True).encode()
         publisher.send_json(j_transaction)
@@ -56,8 +81,8 @@ class Peer2PeerServer:
         print('Just broadcasted chain: {}'.format(j_chain))
         return
 
+    # ChainSubscriber channel
 
-    #ChainSubscriber channel
     def add_chain_subscribe_socket(self, address, chain_sub, chain_port):
         parsed_url = urlparse(address)
         net = parsed_url.netloc
@@ -69,7 +94,7 @@ class Peer2PeerServer:
         print('waiting for the chain from {} on Port: {}'.format(peer, chain_port))
         return
 
-    #Transaction subscriber channel
+    # Transaction subscriber channel
     def add_transaction_subscribe_socket(self, address, trans_sub, trans_port):
         parsed_url = urlparse(address)
         net = parsed_url.netloc
