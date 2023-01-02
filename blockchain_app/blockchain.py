@@ -66,15 +66,12 @@ class Blockchain:
 
         try:
             # get instance of  the transaction pool and check if the pool has reached 100
-            if len(self.transaction_pool) + 1 == 5:
-                self.transaction_pool.append(transaction.data)
-
+            self.transaction_pool.append(transaction.data)
+            if len(self.transaction_pool) == 100:
                 _ = self.mine(self.transaction_pool, db=db)
 
-            else:
-                self.transaction_pool.append(transaction.data)
-                print("Transaction pool checked, not mining a new block....",
-                      len(self.transaction_pool))
+                # Reset the transaction pool
+                self.transaction_pool = []
 
             db.commit()
             db.refresh(db_transaction)
@@ -112,7 +109,7 @@ class Blockchain:
         added = self.add_block(block, proof, db=db)
 
         if added:
-            self.transaction_pool = []
+            
             print("Block #{} is mined.".format(current_index))
 
         return False
