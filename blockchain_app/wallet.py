@@ -42,14 +42,6 @@ class Wallet:
         transaction['timestamp'] = timestamp
         transaction['data'] = data
 
-        send_tx = {
-            "transaction_id": "1",
-            "pub_key": "my_key",
-            "signature": "hash123",
-            "data": "Testing the api",
-            "timestamp": "2023-01-01T17:18:05.742Z"
-        }
-
         return transaction
 
     def get_signature(self, transaction, private_key):

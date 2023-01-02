@@ -29,6 +29,7 @@ def send_transaction():
         '/home/sunday/dev/keys/secp256k1.key')
 
     transaction = account.create_transaction(data)
+    trans_result = transaction
 
     string_transaction = json.dumps(transaction, sort_keys=True).encode()
     signature = ecdsa.sign(string_transaction, priv_key,
@@ -39,14 +40,8 @@ def send_transaction():
     verified = account.validate_transaction(to_send)
 
     if verified:
-        send_tx = {
-            "transaction_id": "1",
-            "pub_key": "my_key",
-            "signature": "hash123",
-            "data": "Testing the api",
-            "timestamp": "2023-01-01T17:18:05.742Z"
-        }
-        trx = requests.post("http://new-transaction", send_tx)
+        
+        trx = requests.post("http://new-transaction", trans_result)
         print('Just received transaction broadcast {}: and added it to transaction pool'.format(
             trx))
     else:
