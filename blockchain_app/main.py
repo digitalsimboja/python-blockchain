@@ -6,6 +6,10 @@ from fastecdsa import curve, ecdsa, keys, point
 from fastecdsa.keys import export_key, import_key, gen_keypair
 import json
 import os
+import time
+import threading
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from . import models, schemas, blockchain, wallet
 
@@ -14,13 +18,22 @@ from .database import SessionLocal, engine
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+session = requests.Session()
+session = requests.Session()
+retry = Retry(connect=3, backoff_factor=0.5)
+adapter = HTTPAdapter(max_retries=retry)
+session.mount('http://', adapter)
+
+url = "http://127.0.0.1:8000"
 
 # Dependency
 chain = blockchain.Blockchain()
 account = wallet.Wallet()
 account.generate_key_pair()
 
-# Construct a transaction 
+# Construct a transaction
+
+
 def send_transaction():
     receiver_priv_key = account.generate_private_key()
     receiver_pub_key = account.generate_public_key(receiver_priv_key)
@@ -41,16 +54,13 @@ def send_transaction():
     verified = account.validate_transaction(to_send)
 
     if verified:
-        
-        trx = requests.post("http://new-transaction", trans_result)
+
+        trx = requests.post(
+            f"{url}/new-transaction", trans_result)
         print('Just received transaction broadcast {}: and added it to transaction pool'.format(
             trx))
     else:
         print("You have sent an inbalid transaction")
-
-
-# call the send transaction function
-send_transaction()
 
 
 def get_db():
@@ -66,8 +76,8 @@ async def root():
     return account.generate_key_pair()
 
 
-@app.post("/", response_model=schemas.Block)
-def create_genesis_block(db: Session = Depends(get_db)):
+@app.post("/create-genesis-block", response_model=schemas.Block)
+async def create_genesis_block(db: Session = Depends(get_db)):
     genesis_block = chain.create_genesis_block(db)
 
     return genesis_block
@@ -90,19 +100,37 @@ def create_transaction(transaction: schemas.TransactionCreate, db: Session = Dep
     return trx
 
 
-# @app.get("/transactions/{transaction_id}", response_model=schemas.BlockchainTransaction)
-# def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
-#     db_transaction = blockchain.get_transaction_by_id(db, transaction_id=transaction_id)
-#     if db_transaction is None:
-#         raise HTTPException(status_code=404, detail="Transaction not found")
-#     return db_transaction
+@app.get("/transactions/{transaction_id}", response_model=schemas.Transaction)
+def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
+    db_transaction = chain.get_transaction_by_id(db, transaction_id=transaction_id)
+    if db_transaction is None:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return db_transaction
 
 
-# @app.get("/check-transactions", response_model=schemas.BlockchainTransaction)
-# def get_valid_transactions(db: Session = Depends(get_db)):
-#     valid_transactions = blockchain.check_valid_transactions(db=db)
+@app.get("/check-transactions", response_model=schemas.Transaction)
+def get_valid_transactions(db: Session = Depends(get_db)):
+    valid_transactions = blockchain.check_valid_transactions(db=db)
 
-#     return valid_transactions
+    return valid_transactions
+
+def initialiseAlphaNode():
+    # Start by Creating the Genesis Block
+    session.post(f"{url}/create-genesis-block")
+    # Then Set a timeline for mining new blocks - 60 seconds, then check transactions -
+    # if they are more than 100 - mine a new block
+    while True:
+        send_transaction()
+        # wait for 1 minute before checking again
+        time.sleep(60)
+
+
+t1 = threading.Thread(target=initialiseAlphaNode, daemon=True)
+
+t1.start()
+
+
+
 
 
 # from flask import Flask, render_template, request, jsonify
