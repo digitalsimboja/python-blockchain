@@ -62,18 +62,10 @@ class Blockchain:
             transaction.data, sort_keys=True).encode()
 
         db_transaction = models.Transaction(
-            transaction_id=transaction.transaction_id, data=transaction_string)
+            transaction_id=transaction.transaction_id, data=transaction_string, pub_key=transaction.pub_key, signature=transaction.signature)
         db.add(db_transaction)
 
         try:
-            # get instance of  the transaction pool and check if the pool has reached 100
-            self.transaction_pool.append(transaction.data)
-            if len(self.transaction_pool) == 100:
-                _ = self.mine(self.transaction_pool, db=db)
-
-                # Reset the transaction pool
-                self.transaction_pool = []
-
             db.commit()
             db.refresh(db_transaction)
 
@@ -257,9 +249,9 @@ class Blockchain:
         transactions = self.get_transactions(db)
 
         for trx in transactions:
-            id = trx['id']
+            id = trx.id
             data = json.loads(trx['data'])
-            signature_string = trx['signature']
+            signature_string = trx.signature
             string_transaction = json.dumps(data, sort_keys=True).encode()
             signature = eval(signature_string)
 

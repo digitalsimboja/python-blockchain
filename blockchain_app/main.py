@@ -59,34 +59,6 @@ def get_db():
 
 
 # Construct a transaction
-def send_transaction():
-    receiver_priv_key = account.generate_private_key()
-    receiver_pub_key = account.generate_public_key(receiver_priv_key)
-
-    data = "Buy me a coffee"
-    priv_key, pub_key = import_key(
-        os.path.join("blockchain/keys/secp256k1.key"))
-
-    transaction = account.create_transaction(data)
-    trans_result = transaction
-
-    string_transaction = json.dumps(transaction, sort_keys=True).encode()
-    signature = ecdsa.sign(string_transaction, priv_key,
-                           curve=curve.secp256k1, hashfunc=ecdsa.sha256)
-    transaction['signature'] = json.dumps(signature)
-    to_send = json.dumps(transaction, sort_keys=True)
-
-    verified = account.validate_transaction(to_send)
-
-    if verified:
-
-        trx = requests.post(
-            f"http://127.0.0.1/new-transaction", trans_result)
-        print('Just received transaction broadcast {}: and added it to transaction pool'.format(
-            trx))
-    else:
-        print("You have sent an inbalid transaction")
-
 
 @app.get("/")
 async def root():
@@ -146,6 +118,8 @@ def connect_node(request: Request, db: Session = Depends(get_db)):
 # our application to add new data  to the blockchain
 @app.post('/new-transaction', response_model=schemas.Transaction)
 def create_transaction(transaction: schemas.TransactionCreate, db: Session = Depends(get_db)):
+    print("Dumping I am inside transaction to_send: ", transaction)
+        
     db_transaction = chain.get_transaction_by_id(
         db, transaction_id=transaction.transaction_id)
     if db_transaction:
@@ -184,7 +158,7 @@ def initializeLeaderNode(db):
         transactions = chain.get_transactions(db)
 
         print("Mining a new transaction: ", len(transactions))
-        if len(transactions) > 100:
+        if len(transactions) > 10:
             mined_block = chain.proof_of_work(db)
 
             blockchain = chain.get_blocks(db)
@@ -379,6 +353,42 @@ def createBlockchainConnection(db):
         time.sleep(app.config['WAIT_TIME'])
 
 
+def test_send_transaction():
+
+    start = time.time()
+    timeout = start + 60
+    while start < timeout:
+
+        # receiver_priv_key = account.generate_private_key()
+        # receiver_pub_key = account.generate_public_key(receiver_priv_key)
+
+        data = "Buy me a coffee"
+        priv_key, pub_key = import_key(
+            os.path.join("blockchain/keys/secp256k1.key"))
+
+        transaction = account.create_transaction(data)
+        string_transaction = json.dumps(transaction, sort_keys=True).encode()
+        signature = ecdsa.sign(string_transaction, priv_key, curve=curve.secp256k1, hashfunc=ecdsa.sha256)
+       
+        transaction['signature'] = json.dumps(signature)
+        transaction['pub_key'] = json.dumps((pub_key.x, pub_key.y))
+
+        to_send = json.dumps(transaction, sort_keys=True)
+        
+        verified = account.validate_transaction(to_send)
+
+        if verified:
+            trx = requests.post(
+                "http://new-transaction", transaction)
+            print('Just received transaction broadcast {}: and added it to transaction pool'.format(
+                trx))
+        else:
+            print("You have sent an invalid transaction")
+
+        start += 1
+        time.sleep(10)
+
+
 # If you were not the Alpha node
 # t1 = threading.Thread(target=createBlockchainConnection, daemon=True, args=get_db())
 thread1 = threading.Thread(
@@ -387,7 +397,10 @@ thread2 = threading.Thread(
     target=await_transaction_broadcast, daemon=True, args=get_db())
 thread3 = threading.Thread(
     target=await_chain_broadcast, daemon=True, args=get_db())
+thread4 = threading.Thread(
+    target=test_send_transaction, daemon=True)
 
 thread1.start()
 thread2.start()
 thread3.start()
+# thread4.start()

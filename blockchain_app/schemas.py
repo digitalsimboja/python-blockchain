@@ -28,6 +28,7 @@ class TransactionBase(BaseModel):
     transaction_id: str
     data: str
     pub_key: str
+    signature: str
     timestamp: datetime = None
 
 
