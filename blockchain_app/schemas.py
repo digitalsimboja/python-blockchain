@@ -6,10 +6,9 @@ from pydantic import BaseModel
 
 class BlockBase(BaseModel):
     block: int
-    transactions: list
-    timestamp: datetime = None
     nonce: int
     prev_hash: str
+    root_hash: str
     hash: str
 
 
@@ -29,29 +28,14 @@ class TransactionBase(BaseModel):
     data: str
     pub_key: str
     signature: str
-    timestamp: datetime = None
 
 
 class TransactionCreate(TransactionBase):
+    # transactions: list
     pass
 
 
 class Transaction(TransactionBase):
-    id: int
-
-    class Config:
-        orm_mode = True
-
-
-class BlockchainBase(BaseModel):
-    blocks: list
-
-
-class BlockchainCreate(BlockchainBase):
-    pass
-
-
-class Blockchain(BlockchainBase):
     id: int
 
     class Config:
@@ -72,6 +56,7 @@ class Node(NodeBase):
     class Config:
         orm_mode = True
 
+
 class PeerBase(BaseModel):
     ip: str
 
@@ -85,6 +70,3 @@ class Peer(PeerBase):
 
     class Config:
         orm_mode = True
-
-
-

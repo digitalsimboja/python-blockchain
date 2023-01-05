@@ -62,7 +62,7 @@ def get_db():
 
 @app.get("/")
 async def root():
-    return account.generate_key_pair()
+    return {"message": "Welcome to the Python Blockchain"}
 
 
 @app.post("/create-genesis-block", response_model=schemas.Block)
@@ -71,62 +71,20 @@ async def create_genesis_block(db: Session = Depends(get_db)):
 
     return genesis_block
 
-
-# Connecting new nodes - New nodes will hit this route to get connected
-@app.post('/connect-node', response_model=schemas.Node)
-def connect_node(request: Request, db: Session = Depends(get_db)):
-    data = request.body()
-    node = data['node']
-
-    # http://the-ip-address:PORT
-
-    # Get the new chain
-    blockchain = chain.get_blocks(db)
-
-    # Get the Nodes - We need to send the IP addresses so this node can also subscribe to them .....
-    nodes = chain.get_nodes(db)
-
-    # We need to do a check that the node does not already exists in our database before we add it
-    for x in nodes:
-        parsed_x = urlparse(x)
-        parsed_node = urlparse(node)
-        if parsed_x.netloc == parsed_node.netloc:
-            # This URL is already in our database
-            print('This URL is already in our database')
-            return 'FAILED: ALREADY IN DATABASE'
-
-    # If the URL does not already exist - we can proceed with adding it to the database
-    # Add the node to the database
-    peerserver.add_peer(node, db)
-    peerserver.add_node(node, db)
-
-    # We then need to subscribe to this new node -
-    peerserver.add_transaction_subscribe_socket(
-        node, transaction_subscriber, '22344')
-    peerserver.add_chain_subscribe_socket(node, chain_subscriber, '21344')
-
-    # Send everyone a copy of the chain - so the new connection can have it.
-    if blockchain > 0:
-        peerserver.broadcast_chain(chain, chain_publisher)
-
-    response = {'nodes': nodes}
-    db.close()
-    return response
-
-
 # endpoint to submit a new transaction. This will be used by
 # our application to add new data  to the blockchain
+
+
 @app.post('/new-transaction', response_model=schemas.Transaction)
 def create_transaction(transaction: schemas.TransactionCreate, db: Session = Depends(get_db)):
-    print("Dumping I am inside transaction to_send: ", transaction)
-        
+    new_transaction = transaction
     db_transaction = chain.get_transaction_by_id(
-        db, transaction_id=transaction.transaction_id)
+        db, transaction_id=new_transaction.transaction_id)
     if db_transaction:
         raise HTTPException(
             status_code=400, detail="Transaction already exists")
 
-    trx = chain.create_transaction(db=db, transaction=transaction)
+    trx = chain.create_transaction(db=db, transaction=new_transaction)
 
     return trx
 
@@ -157,11 +115,12 @@ def initializeLeaderNode(db):
     while True:
         transactions = chain.get_transactions(db)
 
-        print("Mining a new transaction: ", len(transactions))
+        print(f"Mining a new transaction: #{len(transactions)}")
         if len(transactions) > 10:
             mined_block = chain.proof_of_work(db)
 
             blockchain = chain.get_blocks(db)
+
             # broadcast the new chain
             peerserver.broadcast_chain(blockchain, chain_publisher)
 
@@ -213,12 +172,10 @@ def await_chain_broadcast(db: Session):
                     new_block['block'] = blk['block']
                     new_block['nonce'] = blk['nonce']
                     new_block['hash'] = blk['hash']
-                    new_block['prev_hash'] = blk['prev_hash']
-                    new_block['timestamp'] = blk['timestamp']
                     new_block['transactions'] = blk['transactions']
 
                     db_block = models.Block(
-                        block=new_block['block'], transactions=new_block['transactions'], nonce=new_block['nonce'], prev_hash=new_block['prev_hash'], hash=new_block['hash'], timestamp=new_block['timestamp'])
+                        block=new_block['block'], transactions=new_block['transactions'], nonce=new_block['nonce'], prev_hash=new_block['prev_hash'], hash=new_block['hash'])
                     db.add(db_block)
 
                 try:
@@ -276,11 +233,10 @@ def await_chain_broadcast(db: Session):
                             new_block['nonce'] = blk['nonce']
                             new_block['hash'] = blk['hash']
                             new_block['prev_hash'] = blk['prev_hash']
-                            new_block['timestamp'] = blk['timestamp']
                             new_block['transactions'] = blk['transactions']
 
                             db_block = models.Block(
-                                block=new_block['block'], transactions=new_block['transactions'], nonce=new_block['nonce'], prev_hash=new_block['prev_hash'], hash=new_block['hash'], timestamp=new_block['timestamp'])
+                                block=new_block['block'], transactions=new_block['transactions'], nonce=new_block['nonce'], prev_hash=new_block['prev_hash'], hash=new_block['hash'])
                             db.add(db_block)
 
                         try:
@@ -352,6 +308,49 @@ def createBlockchainConnection(db):
         # wait for one minute before checking again
         time.sleep(app.config['WAIT_TIME'])
 
+# Connecting new nodes - New nodes will hit this route to get connected
+
+
+@app.post('/connect-node', response_model=schemas.Node)
+def connect_node(request: Request, db: Session = Depends(get_db)):
+    data = request.body()
+    node = data['node']
+
+    # http://the-ip-address:PORT
+
+    # Get the new chain
+    blockchain = chain.get_blocks(db)
+
+    # Get the Nodes - We need to send the IP addresses so this node can also subscribe to them .....
+    nodes = chain.get_nodes(db)
+
+    # We need to do a check that the node does not already exists in our database before we add it
+    for x in nodes:
+        parsed_x = urlparse(x)
+        parsed_node = urlparse(node)
+        if parsed_x.netloc == parsed_node.netloc:
+            # This URL is already in our database
+            print('This URL is already in our database')
+            return 'FAILED: ALREADY IN DATABASE'
+
+    # If the URL does not already exist - we can proceed with adding it to the database
+    # Add the node to the database
+    peerserver.add_peer(node, db)
+    peerserver.add_node(node, db)
+
+    # We then need to subscribe to this new node -
+    peerserver.add_transaction_subscribe_socket(
+        node, transaction_subscriber, '22344')
+    peerserver.add_chain_subscribe_socket(node, chain_subscriber, '21344')
+
+    # Send everyone a copy of the chain - so the new connection can have it.
+    if blockchain > 0:
+        peerserver.broadcast_chain(chain, chain_publisher)
+
+    response = {'nodes': nodes}
+    db.close()
+    return response
+
 
 def test_send_transaction():
 
@@ -368,13 +367,14 @@ def test_send_transaction():
 
         transaction = account.create_transaction(data)
         string_transaction = json.dumps(transaction, sort_keys=True).encode()
-        signature = ecdsa.sign(string_transaction, priv_key, curve=curve.secp256k1, hashfunc=ecdsa.sha256)
-       
+        signature = ecdsa.sign(string_transaction, priv_key,
+                               curve=curve.secp256k1, hashfunc=ecdsa.sha256)
+
         transaction['signature'] = json.dumps(signature)
         transaction['pub_key'] = json.dumps((pub_key.x, pub_key.y))
 
         to_send = json.dumps(transaction, sort_keys=True)
-        
+
         verified = account.validate_transaction(to_send)
 
         if verified:

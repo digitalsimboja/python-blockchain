@@ -2,11 +2,12 @@ from uuid import uuid4
 from urllib.parse import urlparse
 import zmq
 import json
+import pickle
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 
-from . import models, schemas
+from . import models, serialize
 
 
 class Peer2PeerServer:
@@ -76,7 +77,8 @@ class Peer2PeerServer:
         return
 
     def broadcast_chain(self, chain, publisher):
-        j_chain = json.dumps(chain, sort_keys=True).encode()
+        j_chain = serialize.serialize(chain)
+
         publisher.send_json(j_chain)
         print('Just broadcasted chain: {}'.format(j_chain))
         return

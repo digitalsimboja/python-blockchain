@@ -19,13 +19,16 @@ class Blockchain:
         self.blocks = []
 
     def create_genesis_block(self, db: Session):
+        transactions = [
+            "This is the genesis block of the python blockchain"]
 
         block = {}
         block['block'] = 1
         block['nonce'] = 123
         block['prev_hash'] = '0000000000'
-        block['transactions'] = [
-            "This is the genesis block of the python blockchain"]
+        block['root_hash'] = self.create_merkle_tree(transactions)
+        block_time = datetime.now()
+        block['timestamp'] = block_time.strftime('%Y-%m-%d %H:%M:%S.%f')
 
         # TODO: Create a hash of the transactions and sign the hash
 
@@ -36,19 +39,15 @@ class Blockchain:
 
         # Persist the genesis block to the blockchain
         genesis_block = models.Block(
-            block=block['block'], transactions=block['transactions'], nonce=block['nonce'], prev_hash=block['prev_hash'], hash=block['hash'])
+            block=block['block'], root_hash=block['root_hash'], nonce=block['nonce'], prev_hash=block['prev_hash'], hash=block['hash'], timestamp=block['timestamp'])
 
         self.blocks.append(genesis_block)
         # add the new block to the block chain
 
-        db_chain = models.Blockchain(
-            blocks=self.blocks
-        )
         try:
-            db.add_all([genesis_block, db_chain])
+            db.add(genesis_block)
             db.commit()
             db.refresh(genesis_block)
-            db.refresh(db_chain)
 
             return genesis_block
         except SQLAlchemyError as e:
@@ -57,12 +56,20 @@ class Blockchain:
                 "Failed to Commit because of {error}. Doing Rollback".format(error=e))
 
     def create_transaction(self, db: Session, transaction: schemas.Transaction):
+        trx = {}
+        trx['transaction_id'] = transaction.transaction_id
+        trx['pub_key'] = transaction.pub_key
+        trx['signature'] = transaction.signature
+
+        t_time = datetime.now()
+        trx['timestamp'] = t_time.strftime('%Y-%m-%d %H:%M:%S.%f')
 
         transaction_string = json.dumps(
             transaction.data, sort_keys=True).encode()
+        trx['data'] = transaction_string
 
         db_transaction = models.Transaction(
-            transaction_id=transaction.transaction_id, data=transaction_string, pub_key=transaction.pub_key, signature=transaction.signature)
+            transaction_id=trx['transaction_id'], data=trx['data'], pub_key=trx['pub_key'], signature=trx['signature'], timestamp=trx['timestamp'])
         db.add(db_transaction)
 
         try:
@@ -104,39 +111,8 @@ class Blockchain:
 
         return len(chain) + 1
 
-    def mine(self, transactions, db: Session):
-        """
-        This function serves as an interface to add the pending
-        transactions from the pool to the blockchain by adding them to the block
-        and figuring out Proof Of Work.
-        """
-
-        last_block = self.get_last_block(db)  # self.blocks[-1]
-
-        previous_hash = last_block['hash']
-
-        current_index = last_block['block'] + 1
-
-        # When the node creates blocks, we create a Merkle tree of 100 messages.
-        # This produces Merkle root hash. Sign this hash and persist it.
-        # Ignoring this for now
-        block = {}
-        block['block'] = current_index
-        block['nonce'] = 123
-        block['prev_hash'] = previous_hash
-        block['transactions'] = transactions
-
-        proof = self.proof_of_work(block)
-        added = self.add_block(block, proof, db=db)
-
-        if added:
-
-            print("Block #{} is mined.".format(current_index))
-
-        return False
-
     def proof_of_work(self, db: Session):
-        # Let us verify all the transactions in the pool
+        # Let us verify all the first 100 transactions in the pool
         verified_transactions = self.check_valid_transactions(db)
 
         last_block = self.get_last_block(db)  # self.blocks[-1]
@@ -148,12 +124,16 @@ class Blockchain:
         # When the node creates blocks, we create a Merkle tree of 100 messages.
         # This produces Merkle root hash. Sign this hash and persist it.
         # Ignoring this for now
+        _time = datetime.now()
         block = {}
         block['block'] = current_index
         block['nonce'] = 123
         block['prev_hash'] = previous_hash
-        # Create the merkle root hash
-        block['transactions'] = verified_transactions
+        # Create the merkle root hash of the 100 verified transactions
+        block['root_hash'] = self.create_merkle_tree(verified_transactions)
+        block['timestamp'] = _time.strftime('%Y-%m-%d %H:%M:%S.%f')
+
+        print("block['root_hash'] :", block['root_hash'])
 
         mining = False
         while mining is False:
@@ -171,11 +151,12 @@ class Blockchain:
         block['hash'] = new_hash
 
         # Append and persist the new block to the block chain
+        # We won't need this since we are using RDBMS
         self.blocks.append(block)
 
         # New block is mined, persist it to the chain, with the new hash
         db_block = models.Block(
-            block=block['block'], transactions=block['transactions'], nonce=block['nonce'], prev_hash=block['prev_hash'], hash=block['hash'])
+            block=block['block'], root_hash=block['root_hash'], nonce=block['nonce'], prev_hash=block['prev_hash'], hash=block['hash'], timestamp=block['timestamp'])
 
         try:
             db.add(db_block)
@@ -191,7 +172,7 @@ class Blockchain:
 
     def add_block(self, block, db: Session):
         db_block = models.Block(
-            block=block['block'], transactions=block['transactions'], nonce=block['nonce'], prev_hash=block['prev_hash'], hash=block['hash'], timestamp=block['timestamp'])
+            block=block['block'], transactions=block['transactions'], nonce=block['nonce'], prev_hash=block['prev_hash'], hash=block['hash'])
 
         try:
             db.add(db_block)
@@ -246,6 +227,7 @@ class Blockchain:
     def check_valid_transactions(self, db: Session):
         verified_transactions = []
 
+        # Get the first 100 transactions
         transactions = self.get_transactions(db)
 
         for trx in transactions:
@@ -316,3 +298,38 @@ class Blockchain:
         db.close()
 
         return True
+
+    # Helper function to calculate the hash of a transaction
+    def calculate_hash(self, transaction):
+        # Encode the transaction string as bytes and calculate the hash
+        transaction_bytes = json.dumps(transaction, sort_keys=True).encode()
+        return hashlib.sha256(transaction_bytes).hexdigest()
+
+    # Create the Merkle tree
+
+    def create_merkle_tree(self, transactions):
+        # If there is only one transaction, return its hash
+        if len(transactions) == 0:
+            return
+        elif len(transactions) == 1:
+
+            return self.calculate_hash(transactions[0])
+
+        # If there are more than one transaction, create a new level in the tree
+        new_level = []
+        for i in range(0, len(transactions), 2):
+            # Calculate the hash of the two transactions
+            hash1 = self.calculate_hash(transactions[i])
+            if i+1 < len(transactions):
+                hash2 = self.calculate_hash(transactions[i+1])
+            else:
+                # If there is an odd number of transactions, duplicate the last one
+                hash2 = hash1
+
+            # Concatenate the two hashes and calculate the hash of the concatenation
+            new_hash = hash1 + hash2
+            new_hash = self.calculate_hash(new_hash)
+            new_level.append(new_hash)
+
+        # Recursively create the next level of the tree
+        return self.create_merkle_tree(new_level)
