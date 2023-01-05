@@ -36,16 +36,19 @@ chain = blockchain.Blockchain()
 account = wallet.Wallet()
 peerserver = p2pserver.Peer2PeerServer()
 
-# Initialise ZMQ Context
-context = zmq.Context()
+# Create a new zmq context
+zmq_context = zmq.Context()
+
+# Store the context in the app state
+app.state.zmq_context = zmq_context
 
 # Set up the publishers
-transaction_publisher = peerserver.bind_transaction_broadcast_port(context)
-chain_publisher = peerserver.bind_chain_broadcast_port(context)
+transaction_publisher = peerserver.bind_transaction_broadcast_port(app.state.zmq_context )
+chain_publisher = peerserver.bind_chain_broadcast_port(app.state.zmq_context )
 
 # Set up the subscribers
-transaction_subscriber = context.socket(zmq.SUB)
-chain_subscriber = context.socket(zmq.SUB)
+transaction_subscriber = app.state.zmq_context.socket(zmq.SUB)
+chain_subscriber = app.state.zmq_context.socket(zmq.SUB)
 
 account.generate_key_pair()
 
@@ -117,7 +120,7 @@ def initializeLeaderNode(db):
 
         print(f"Mining a new transaction: #{len(transactions)}")
         if len(transactions) > 10:
-            mined_block = chain.proof_of_work(db)
+            _ = chain.proof_of_work(db)
 
             blockchain = chain.get_blocks(db)
 
@@ -128,7 +131,6 @@ def initializeLeaderNode(db):
                 'Just mined a block and broadcasted the new chain {}'.format(len(transactions)))
 
         # wait for one minute before checking again
-        print("Checking if we have 100 transactions in the pool after 60 seconds: ", transactions)
         time.sleep(10)
 
 
@@ -155,8 +157,9 @@ def await_transaction_broadcast(db):
 
 
 def await_chain_broadcast(db: Session):
-    while True:
+    while True:     
         chain_result = chain_subscriber.recv_json()
+        print('We await_chain_broadcast ', chain_result)
         new_chain = json.loads(chain_result)
 
         print('We just received a new chain \n {}'.format(new_chain))
@@ -259,7 +262,9 @@ def await_chain_broadcast(db: Session):
                     pass
         else:
             # This is a transaction - transaction function will handle . . . .
+            
             pass
+    
 
 # Connect Node Function - From the Connecting Nodes
 

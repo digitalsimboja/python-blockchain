@@ -78,13 +78,11 @@ class Peer2PeerServer:
 
     def broadcast_chain(self, chain, publisher):
         j_chain = serialize.serialize(chain)
-
         publisher.send_json(j_chain)
         print('Just broadcasted chain: {}'.format(j_chain))
         return
 
     # ChainSubscriber channel
-
     def add_chain_subscribe_socket(self, address, chain_sub, chain_port):
         parsed_url = urlparse(address)
         net = parsed_url.netloc
