@@ -4,13 +4,13 @@
 Clone the project
 
 ```
-https://github.com/digitalsimboja/simple-blockchain.git
+https://github.com/digitalsimboja/python-blockchain.git
 
 ```
 
 Install the requirements
 ```
-cd simple-blockchain
+cd python-blockchain
 pip install -r requirements.txt
 
 ```
